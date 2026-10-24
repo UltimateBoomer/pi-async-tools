@@ -1,0 +1,37 @@
+# Publishes to npm when a GitHub release is published. Authentication is npm trusted publishing (OIDC):
+# no npm token is stored here. The trusted publisher is set on npmjs.com, Package settings, for
+# UltimateBoomer/pi-async-tools and this workflow file (publish.yml).
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write   # the OIDC token npm trusts
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24 bundles npm 11, which trusted publishing needs (11.5.1 or later).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # npm publishes the version in package.json, so the release tag must name the same one.
+      - name: Release tag matches package.json
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "${{ github.event.release.tag_name }}" != "v$version" ]; then
+            echo "Release tag ${{ github.event.release.tag_name }} does not match package.json version v$version" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm publish
