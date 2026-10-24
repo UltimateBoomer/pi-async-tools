@@ -4,7 +4,8 @@
  * async({ tool, args }) starts a job and returns its id at once. The model keeps working; when the
  * job ends, its result arrives as a custom message that starts or continues a turn.
  *   - Same checks: jobs run through ctx.executeTool(), so validation, tool_call hooks (sandboxes,
- *     permission gates) and tool_result hooks apply as for model-issued calls.
+ *     permission gates) and tool_result hooks apply as for model-issued calls. Arguments are also
+ *     validated before the job starts, so a malformed call fails at once instead of in the result.
  *   - Delivery: a follow-up message while the agent is busy, a new turn while it is idle. In
  *     print and json mode the run waits for pending jobs before it settles, so no result is lost.
  *   - Limits: at most asyncTools.maxJobs (default 4) jobs at once. Tools in asyncTools.deny
@@ -15,6 +16,7 @@
  * async({ cancel: id }) aborts a job. async({}) lists running jobs.
  */
 
+import { type JsonObject, validateToolArguments } from "@earendil-works/pi-ai";
 import { type ExtensionAPI, type ExtensionToolContext, truncateTail } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
@@ -114,7 +116,7 @@ export default function piAsync(pi: ExtensionAPI) {
 			cancel: Type.Optional(Type.String({ description: "Job id to abort" })),
 		}),
 
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
 			const text = (value: string) => ({ content: [{ type: "text" as const, text: value }], details: undefined });
 			if (params.cancel) {
 				const job = jobs.get(params.cancel);
@@ -126,12 +128,17 @@ export default function piAsync(pi: ExtensionAPI) {
 
 			const { maxJobs, denied } = readSettings(pi);
 			if (denied.has(params.tool)) throw new Error(`"${params.tool}" cannot run async (asyncTools.deny). Call it directly.`);
-			if (!ctx.tools.some((tool) => tool.name === params.tool)) {
+			const target = ctx.tools.find((tool) => tool.name === params.tool);
+			if (!target) {
 				throw new Error(`"${params.tool}" is not a callable tool. Callable: ${ctx.tools.map((tool) => tool.name).filter((name) => !denied.has(name)).join(", ")}`);
 			}
+			// The same preparation and schema check executeTool() runs, done now so the error reaches the caller.
+			const args = (params.args ?? {}) as JsonObject;
+			const prepared = (target.prepareArguments ? target.prepareArguments(args) : args) as JsonObject;
+			validateToolArguments(target, { type: "toolCall", id: toolCallId, name: target.name, arguments: prepared });
 			if (jobs.size >= maxJobs) throw new Error(`${maxJobs} async jobs already running (asyncTools.maxJobs).\n${listing()}`);
 
-			const job = start(ctx, params.tool, params.args ?? {});
+			const job = start(ctx, params.tool, args);
 			return text(`Started ${job.id}: ${job.tool}. The result arrives as an <async_result id="${job.id}"> message.`);
 		},
 	});

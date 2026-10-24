@@ -29,6 +29,7 @@ async-done
 ## How it works
 
 - Jobs run through `ctx.executeTool()`, so argument validation, `tool_call` hooks and `tool_result` hooks apply as for model-issued calls. A sandbox or permission extension sees each background call with a `parentToolCallId`.
+- Arguments are checked against the target tool's schema before the job starts. A malformed call fails at once with pi's validation error, instead of starting a job that fails later.
 - Delivery uses `pi.sendMessage(..., { triggerTurn: true, deliverAs: "followUp" })`. While the agent is busy, the result queues after the current work. While it is idle, the result starts a new turn.
 - In print and json mode, an `agent_before_settle` handler waits for pending jobs before the run ends. Their messages then continue the run, so `pi -p` never exits with a result undelivered.
 - Session shutdown aborts every job and delivers nothing.
