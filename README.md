@@ -35,8 +35,19 @@ async-done
 
 ## Limits
 
-- `PI_ASYNC_MAX_JOBS`: concurrent jobs, default 4.
-- `PI_ASYNC_DENY`: comma separated tools that cannot run async, default `edit,write`. A background edit races the model's own edits to the same file. `async` itself is always denied.
+Set in pi's `settings.json`, globally in `~/.pi/agent/settings.json` or per project in `.pi/settings.json`. Project settings apply only in a trusted project.
+
+```json
+{
+  "asyncTools": {
+    "maxJobs": 4,
+    "deny": ["edit", "write"]
+  }
+}
+```
+
+- `maxJobs`: concurrent jobs, default 4.
+- `deny`: tools that cannot run async, default `["edit", "write"]`. A background edit races the model's own edits to the same file. `async` itself is always denied. A project `deny` replaces the global list.
 - Tools with `model-only` or `hidden` exposure are not callable through `executeTool()` and are refused.
 - Background tool usage sits in the message details only. pi does not add it to the session totals.
 - The background call does not appear in the transcript as a tool call. The `<async_result>` message names the tool and the job.

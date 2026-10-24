@@ -7,8 +7,9 @@
  *     permission gates) and tool_result hooks apply as for model-issued calls.
  *   - Delivery: a follow-up message while the agent is busy, a new turn while it is idle. In
  *     print and json mode the run waits for pending jobs before it settles, so no result is lost.
- *   - Limits: at most PI_ASYNC_MAX_JOBS (default 4) jobs at once. Tools in PI_ASYNC_DENY
- *     (default edit,write) are refused, since a background edit races the model's own edits.
+ *   - Limits: at most asyncTools.maxJobs (default 4) jobs at once. Tools in asyncTools.deny
+ *     (default edit, write) are refused, since a background edit races the model's own edits.
+ *     Both are read from pi's settings.json; project settings apply only in a trusted project.
  *   - Cleanup: session shutdown aborts every job.
  *
  * async({ cancel: id }) aborts a job. async({}) lists running jobs.
@@ -17,15 +18,23 @@
 import { type ExtensionAPI, type ExtensionToolContext, truncateTail } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const MAX_JOBS = positiveInt(process.env.PI_ASYNC_MAX_JOBS, 4);
-const DENIED = new Set(
-	(process.env.PI_ASYNC_DENY ?? "edit,write").split(",").map((name) => name.trim()).filter(Boolean).concat("async"),
-);
+const DEFAULT_MAX_JOBS = 4;
+const DEFAULT_DENY = ["edit", "write"];
 const MAX_RESULT_BYTES = 50 * 1024;
 
-function positiveInt(value: string | undefined, fallback: number): number {
-	const parsed = Number(value);
-	return value && Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+interface AsyncSettings {
+	maxJobs: number;
+	/** Always includes "async" itself. */
+	denied: Set<string>;
+}
+
+// The "asyncTools" key of pi's settings: global settings.json merged with a trusted project's.
+// Invalid values fall back to the defaults.
+function readSettings(pi: ExtensionAPI): AsyncSettings {
+	const raw = (pi.getSettings() as { asyncTools?: { maxJobs?: unknown; deny?: unknown } }).asyncTools ?? {};
+	const maxJobs = Number.isInteger(raw.maxJobs) && (raw.maxJobs as number) > 0 ? (raw.maxJobs as number) : DEFAULT_MAX_JOBS;
+	const deny = Array.isArray(raw.deny) && raw.deny.every((name) => typeof name === "string") ? (raw.deny as string[]) : DEFAULT_DENY;
+	return { maxJobs, denied: new Set([...deny, "async"]) };
 }
 
 interface Job {
@@ -115,11 +124,12 @@ export default function piAsync(pi: ExtensionAPI) {
 			}
 			if (!params.tool) return text(listing());
 
-			if (DENIED.has(params.tool)) throw new Error(`"${params.tool}" cannot run async (PI_ASYNC_DENY). Call it directly.`);
+			const { maxJobs, denied } = readSettings(pi);
+			if (denied.has(params.tool)) throw new Error(`"${params.tool}" cannot run async (asyncTools.deny). Call it directly.`);
 			if (!ctx.tools.some((tool) => tool.name === params.tool)) {
-				throw new Error(`"${params.tool}" is not a callable tool. Callable: ${ctx.tools.map((tool) => tool.name).filter((name) => !DENIED.has(name)).join(", ")}`);
+				throw new Error(`"${params.tool}" is not a callable tool. Callable: ${ctx.tools.map((tool) => tool.name).filter((name) => !denied.has(name)).join(", ")}`);
 			}
-			if (jobs.size >= MAX_JOBS) throw new Error(`${MAX_JOBS} async jobs already running (PI_ASYNC_MAX_JOBS).\n${listing()}`);
+			if (jobs.size >= maxJobs) throw new Error(`${maxJobs} async jobs already running (asyncTools.maxJobs).\n${listing()}`);
 
 			const job = start(ctx, params.tool, params.args ?? {});
 			return text(`Started ${job.id}: ${job.tool}. The result arrives as an <async_result id="${job.id}"> message.`);
