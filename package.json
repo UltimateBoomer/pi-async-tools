@@ -1,5 +1,5 @@
 {
-  "name": "pi-async",
+  "name": "pi-async-tools",
   "version": "0.1.0",
   "description": "One async tool for pi: run any callable tool in the background and get its result later as a message, with the same hooks, sandbox and permission checks.",
   "keywords": [
@@ -10,9 +10,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/UltimateBoomer/pi-async.git"
+    "url": "git+https://github.com/UltimateBoomer/pi-async-tools.git"
   },
-  "homepage": "https://github.com/UltimateBoomer/pi-async",
+  "homepage": "https://github.com/UltimateBoomer/pi-async-tools",
   "type": "module",
   "pi": {
     "extensions": [

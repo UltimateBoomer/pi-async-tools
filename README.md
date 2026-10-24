@@ -1,10 +1,10 @@
-# pi-async
+# pi-async-tools
 
 One `async` tool for [pi](https://github.com/earendil-works/pi). It runs any callable pi tool in the background and returns a job id at once. The model keeps working, and the result arrives later as an `<async_result>` message.
 
 ```bash
-pi install git:github.com/UltimateBoomer/pi-async   # persistent
-pi -e git:github.com/UltimateBoomer/pi-async        # one run
+pi install git:github.com/UltimateBoomer/pi-async-tools   # persistent
+pi -e git:github.com/UltimateBoomer/pi-async-tools        # one run
 ```
 
 ## Tool

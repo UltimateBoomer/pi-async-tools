@@ -1,5 +1,5 @@
 /**
- * pi-async - one `async` tool that runs any callable pi tool in the background.
+ * pi-async-tools - one `async` tool that runs any callable pi tool in the background.
  *
  * async({ tool, args }) starts a job and returns its id at once. The model keeps working; when the
  * job ends, its result arrives as a custom message that starts or continues a turn.
